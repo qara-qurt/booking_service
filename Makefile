@@ -14,7 +14,13 @@ migrate-drop:
 
 # Start test enviroment(postgres)
 test:
-	docker-compose -f docker-compose.test.yml up --build --abort-on-container-exit
+	docker-compose -f docker-compose.test.yml up --build -d
+	@echo "Waiting for the database to be ready..."
+	@sleep 5  # Wait for 5 seconds to give PostgreSQL time to initialize
+	migrate -path ./internal/repository/postgres/migrations -database postgres://postgres:password@localhost:5432/postgres?sslmode=disable up
+	go test ./...
+	docker-compose -f docker-compose.test.yml down
+
 
 # Stop test enviroment(postgres)
 test_stop:

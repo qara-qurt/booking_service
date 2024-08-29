@@ -1,124 +1,144 @@
 package service
 
 import (
+	"context"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/qara-qurt/booking_service/internal/repository/postgres"
 	"github.com/qara-qurt/booking_service/model"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 )
 
-// Mock repository for testing
-type MockReservationRepo struct {
-	mock.Mock
+// setupDB establishes a connection to the PostgreSQL database and returns a pool
+func setupDB() (*pgxpool.Pool, func()) {
+	connStr := "postgres://postgres:password@localhost:5432/postgres?sslmode=disable"
+
+	db, err := pgxpool.New(context.Background(), connStr)
+	if err != nil {
+		panic(err)
+	}
+	return db, func() {
+		db.Close()
+	}
 }
 
-func (m *MockReservationRepo) GetReservationByRoom(roomID string) ([]model.Reservation, error) {
-	args := m.Called(roomID)
-	return args.Get(0).([]model.Reservation), args.Error(1)
+// clearReservations clears reservations in the test database
+func clearReservations(db *pgxpool.Pool) error {
+	_, err := db.Exec(context.Background(), "DELETE FROM reservations")
+	return err
 }
 
-func (m *MockReservationRepo) Create(data *model.ReservationRequest) error {
-	args := m.Called(data)
-	return args.Error(0)
-}
+func TestCreateReservation(t *testing.T) {
+	db, teardown := setupDB()
+	defer teardown()
 
-func TestCreateReservation_NoOverlap(t *testing.T) {
-	mockRepo := new(MockReservationRepo)
-	service := NewReservationService(mockRepo)
+	repo := postgres.NewReservationRepo(db)
+	service := NewReservationService(repo)
+	clearReservations(db)
 
-	// Setup mock expectations
-	mockRepo.On("GetReservationByRoom", "room1").Return([]model.Reservation{}, nil)
-	mockRepo.On("Create", mock.Anything).Return(nil)
-
-	// Create reservation
 	req := &model.ReservationRequest{
 		RoomID:    "room1",
 		StartTime: time.Now().Add(1 * time.Hour),
 		EndTime:   time.Now().Add(2 * time.Hour),
 	}
-	err := service.Create(req)
 
-	// Assert expectations
+	err := service.Create(req)
 	assert.NoError(t, err)
-	mockRepo.AssertExpectations(t)
+
+	// Verify that the reservation was created successfully
+	reservations, err := repo.GetReservationByRoom("room1")
+	assert.NoError(t, err)
+	assert.Len(t, reservations, 1)
+	assert.Equal(t, req.RoomID, reservations[0].RoomID)
+	clearReservations(db)
 }
+func TestCreateReservationWithOverlap(t *testing.T) {
+	db, teardown := setupDB()
+	defer teardown()
 
-func TestCreateReservation_Overlap(t *testing.T) {
-	mockRepo := new(MockReservationRepo)
-	service := NewReservationService(mockRepo)
+	repo := postgres.NewReservationRepo(db)
+	service := NewReservationService(repo)
+	clearReservations(db)
 
-	// Setup mock expectations
-	existingReservations := []model.Reservation{
-		{
-			RoomID:    "room1",
-			StartTime: time.Now().Add(1 * time.Hour),
-			EndTime:   time.Now().Add(3 * time.Hour),
-		},
-	}
-	mockRepo.On("GetReservationByRoom", "room1").Return(existingReservations, nil)
+	// 2024-08-12 13:00:00 UTC
+	date := time.Date(2024, 8, 12, 13, 0, 0, 0, time.UTC)
 
-	// Create reservation that overlaps
-	req := &model.ReservationRequest{
-		RoomID:    "room1",
-		StartTime: time.Now().Add(2 * time.Hour),
-		EndTime:   time.Now().Add(4 * time.Hour),
-	}
-	err := service.Create(req)
-
-	// Assert expectations
-	assert.Equal(t, model.ErrRoomAlreadyReserved, err)
-	mockRepo.AssertExpectations(t)
-}
-
-func TestCreateReservation_Concurrent(t *testing.T) {
-	mockRepo := new(MockReservationRepo)
-	service := NewReservationService(mockRepo)
-
-	// Setup mock expectations
-	existingReservations := []model.Reservation{
-		{
-			RoomID:    "room1",
-			StartTime: time.Now().Add(1 * time.Hour),
-			EndTime:   time.Now().Add(2 * time.Hour),
-		},
-	}
-	mockRepo.On("GetReservationByRoom", "room1").Return(existingReservations, nil)
-	mockRepo.On("Create", mock.Anything).Return(nil)
-
-	// Create reservations concurrently
 	req1 := &model.ReservationRequest{
 		RoomID:    "room1",
-		StartTime: time.Now().Add(2 * time.Hour),
-		EndTime:   time.Now().Add(3 * time.Hour),
+		StartTime: date,
+		EndTime:   date.Add(2 * time.Hour),
 	}
+	err := service.Create(req1)
+	assert.NoError(t, err)
 
+	// Create a second reservation that overlaps with the first one
 	req2 := &model.ReservationRequest{
 		RoomID:    "room1",
-		StartTime: time.Now().Add(1 * time.Hour),
-		EndTime:   time.Now().Add(2 * time.Hour),
+		StartTime: date,
+		EndTime:   date.Add(1 * time.Hour),
 	}
 
-	var err1, err2 error
-	var wg sync.WaitGroup
-	wg.Add(2)
+	err = service.Create(req2)
+	assert.Error(t, err)
+	assert.Equal(t, model.ErrRoomAlreadyReserved, err)
 
-	go func() {
-		defer wg.Done()
-		err1 = service.Create(req1)
-	}()
+	// Verify that only the first reservation exists
+	reservations, err := repo.GetReservationByRoom("room1")
+	assert.NoError(t, err)
+	assert.Len(t, reservations, 1)
 
-	go func() {
-		defer wg.Done()
-		err2 = service.Create(req2)
-	}()
+	// Clear reservations after the test
+	clearReservations(db)
+}
 
+func TestConcurrentReservations(t *testing.T) {
+	db, teardown := setupDB()
+	defer teardown()
+
+	repo := postgres.NewReservationRepo(db)
+	service := NewReservationService(repo)
+
+	// Clear any existing reservations to ensure a clean state
+	err := clearReservations(db)
+	assert.NoError(t, err)
+
+	wg := sync.WaitGroup{}
+	// 2024-08-12 13:00:00 UTC
+	date := time.Date(2024, 8, 12, 13, 0, 0, 0, time.UTC)
+
+	err = service.Create(&model.ReservationRequest{
+		RoomID:    "room1",
+		StartTime: date.Add(1 * time.Hour),
+		EndTime:   date.Add(2 * time.Hour),
+	})
+	assert.NoError(t, err)
+
+	createReservation := func() {
+		req := &model.ReservationRequest{
+			RoomID:    "room1",
+			StartTime: date.Add(1 * time.Hour),
+			EndTime:   date.Add(2 * time.Hour),
+		}
+		err := service.Create(req)
+		assert.Error(t, err)
+	}
+
+	// Launch multiple goroutines to create reservations concurrently
+	wg.Add(10)
+	for i := 0; i < 10; i++ {
+		go func() {
+			defer wg.Done()
+			createReservation()
+		}()
+	}
 	wg.Wait()
 
-	// Assert expectations
-	assert.NoError(t, err1)
-	assert.Equal(t, model.ErrRoomAlreadyReserved, err2)
-	mockRepo.AssertExpectations(t)
+	// Verify that only one reservation was successfully created
+	reservations, err := repo.GetReservationByRoom("room1")
+	assert.NoError(t, err)
+	assert.Len(t, reservations, 1)
+	clearReservations(db)
 }

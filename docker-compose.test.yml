@@ -16,3 +16,8 @@ services:
       interval: 10s
       retries: 5
       start_period: 30s
+    volumes:
+      - test_data:/var/lib/postgresql/test_data
+
+volumes:
+  test_data:

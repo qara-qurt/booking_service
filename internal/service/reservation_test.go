@@ -14,7 +14,8 @@ import (
 
 // setupDB establishes a connection to the PostgreSQL database and returns a pool
 func setupDB() (*pgxpool.Pool, func()) {
-	connStr := "postgres://postgres:password@localhost:5432/postgres?sslmode=disable"
+	// Connect to the PostgreSQL database in docker container
+	connStr := "postgres://postgres:password@postgres:5432/postgres?sslmode=disable"
 
 	db, err := pgxpool.New(context.Background(), connStr)
 	if err != nil {

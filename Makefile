@@ -12,19 +12,13 @@ migrate-drop:
 	migrate -database "postgres://postgres:password@localhost:5432/postgres?sslmode=disable" -path ./internal/repository/postgres/migrations drop
 
 
-# Start test enviroment(postgres)
-# Build docker-compose.test.yml to create a test environment with a PostgreSQL database
-# Wait for the database to be ready
-# Run the migrations
-# Run the tests
-# Tear down the test environment
+# Start test enviroment(postgres and app)
+# Build docker-compose.test.yml to create a test environment with a PostgreSQL database and app
+# Run the migrations for app docker container
+# Run the tests in the app docker container
+# Tear down the test environment after the tests are done
 test:
-	docker-compose -f docker-compose.test.yml up --build -d
-	@echo "Waiting for the database to be ready..."
-	@sleep 5  # Wait for 5 seconds to give PostgreSQL time to initialize
-	migrate -path ./internal/repository/postgres/migrations -database postgres://postgres:password@localhost:5432/postgres?sslmode=disable up
-	go test ./...
-	docker-compose -f docker-compose.test.yml down
+	docker-compose -f docker-compose.test.yml up --build --abort-on-container-exit
 
 
 # Stop test enviroment(postgres)

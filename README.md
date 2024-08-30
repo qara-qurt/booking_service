@@ -52,13 +52,6 @@ To run tests, use the following command:
 make test
 ```
 
-If you don't have migrate package
-Install
-
-```bash
-go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest
-```
-
 ### Stopping the Test Environment
 
 If you need to manually stop the test environment, use the following command:

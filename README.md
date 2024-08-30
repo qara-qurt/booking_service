@@ -24,12 +24,6 @@ To run the application, you'll need the following dependencies:
    cd ./booking_service
    ```
 
-2. Install Go dependencies:
-
-   ```bash
-   go mod tidy
-   ```
-
 ## Running the Application
 
 ### Start the Application
@@ -56,6 +50,13 @@ To run tests, use the following command:
 
 ```bash
 make test
+```
+
+If you don't have migrate package
+Install
+
+```bash
+go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest
 ```
 
 ### Stopping the Test Environment

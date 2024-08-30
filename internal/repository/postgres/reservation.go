@@ -11,12 +11,14 @@ type reservationRepo struct {
 	db *pgxpool.Pool
 }
 
+// NewReservationRepo creates a new reservationRepo instance
 func NewReservationRepo(db *pgxpool.Pool) *reservationRepo {
 	return &reservationRepo{
 		db: db,
 	}
 }
 
+// Create creates a new reservation
 func (r *reservationRepo) Create(data *model.ReservationRequest) error {
 	_, err := r.db.Exec(context.Background(), `
 		INSERT INTO reservations (room_id, start_time, end_time)
@@ -29,6 +31,7 @@ func (r *reservationRepo) Create(data *model.ReservationRequest) error {
 	return nil
 }
 
+// GetReservationByRoom retrieves all reservations for a given room
 func (r *reservationRepo) GetReservationByRoom(roomID string) ([]model.Reservation, error) {
 	rows, err := r.db.Query(context.Background(), `
 		SELECT id, room_id, start_time, end_time
@@ -40,6 +43,7 @@ func (r *reservationRepo) GetReservationByRoom(roomID string) ([]model.Reservati
 	}
 	defer rows.Close()
 
+	// Parse the rows into a slice of reservations
 	var reservations []model.Reservation
 	for rows.Next() {
 		var reservation model.Reservation
@@ -48,6 +52,7 @@ func (r *reservationRepo) GetReservationByRoom(roomID string) ([]model.Reservati
 			return nil, err
 		}
 
+		// Append the reservation to the slice
 		reservations = append(reservations, reservation)
 	}
 

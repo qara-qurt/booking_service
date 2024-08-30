@@ -5,6 +5,7 @@ import (
 	"github.com/qara-qurt/booking_service/model"
 )
 
+// IReservation represents the reservation service interface
 type IReservation interface {
 	Create(data *model.ReservationRequest) error
 	GetReservationByRoom(roomID string) ([]model.Reservation, error)

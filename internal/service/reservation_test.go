@@ -31,12 +31,17 @@ func clearReservations(db *pgxpool.Pool) error {
 	return err
 }
 
+// TestCreateReservation tests the Create method of the ReservationService
 func TestCreateReservation(t *testing.T) {
+	// Setup the database connection and defer the teardown
 	db, teardown := setupDB()
 	defer teardown()
 
+	// Create a new reservation layers
 	repo := postgres.NewReservationRepo(db)
 	service := NewReservationService(repo)
+
+	// Clear any existing reservations
 	clearReservations(db)
 
 	req := &model.ReservationRequest{
@@ -45,6 +50,7 @@ func TestCreateReservation(t *testing.T) {
 		EndTime:   time.Now().Add(2 * time.Hour),
 	}
 
+	// Create a new reservation
 	err := service.Create(req)
 	assert.NoError(t, err)
 
@@ -53,12 +59,18 @@ func TestCreateReservation(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Len(t, reservations, 1)
 	assert.Equal(t, req.RoomID, reservations[0].RoomID)
+
+	// Clear reservations after the test
 	clearReservations(db)
 }
+
+// TestCreateReservationWithOverlap tests creating a reservation that overlaps with an existing one
 func TestCreateReservationWithOverlap(t *testing.T) {
+	// Setup the database connection and defer the teardown
 	db, teardown := setupDB()
 	defer teardown()
 
+	// Create all layers
 	repo := postgres.NewReservationRepo(db)
 	service := NewReservationService(repo)
 	clearReservations(db)
@@ -94,7 +106,9 @@ func TestCreateReservationWithOverlap(t *testing.T) {
 	clearReservations(db)
 }
 
+// TestConcurrentReservations tests creating reservations concurrently
 func TestConcurrentReservations(t *testing.T) {
+	//Setup the database connection and defer the teardown
 	db, teardown := setupDB()
 	defer teardown()
 

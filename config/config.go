@@ -7,6 +7,7 @@ import (
 	"github.com/joho/godotenv"
 )
 
+// Config represents the application configuration
 type Config struct {
 	Server   Server
 	Database Database
@@ -17,14 +18,15 @@ type Server struct {
 }
 
 type Database struct {
-	Host     string
-	Port     string
-	User     string
-	Password string
-	SSLMode  string
-	DBName   string
+	Host     string // Host is the address of the database  - localhost
+	Port     string // Port is the port of the database - 5432
+	User     string // User is the username to connect to the database - postgres
+	Password string // Password is the password to connect to the database - password
+	SSLMode  string // SSLMode is the SSL mode to connect to the database - disable
+	DBName   string // DBName is the name of the database - postgres
 }
 
+// GetEnv retrieves the value of an environment variable or returns a default value
 func GetEnv(key, defaultValue string) string {
 	value, exists := os.LookupEnv(key)
 	if !exists {
@@ -33,6 +35,7 @@ func GetEnv(key, defaultValue string) string {
 	return value
 }
 
+// New creates a new Config instance
 func New() (*Config, error) {
 	err := godotenv.Load()
 	if err != nil {

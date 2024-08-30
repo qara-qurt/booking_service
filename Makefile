@@ -13,6 +13,11 @@ migrate-drop:
 
 
 # Start test enviroment(postgres)
+# Build docker-compose.test.yml to create a test environment with a PostgreSQL database
+# Wait for the database to be ready
+# Run the migrations
+# Run the tests
+# Tear down the test environment
 test:
 	docker-compose -f docker-compose.test.yml up --build -d
 	@echo "Waiting for the database to be ready..."
@@ -26,7 +31,7 @@ test:
 test_stop:
 	docker-compose -f docker-compose.test.yml down
 
-# Start application
+# Start application with docker-compose
 run:
 	docker-compose -f docker-compose.yml up --build
 
